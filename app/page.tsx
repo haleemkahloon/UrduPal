@@ -226,10 +226,6 @@ export default function Home() {
       setAuthError(ui.auth.fillFields);
       return;
     }
-    if (signInPassword.length < 6) {
-      setAuthError(ui.auth.passwordTooShort);
-      return;
-    }
     if (!isValidUrduPalUsername(signInUsername)) {
       setAuthError(ui.auth.invalidUsername);
       return;
@@ -249,16 +245,13 @@ export default function Home() {
       "urdupal_auth_email_available",
       { p_email: email },
     );
-    if (rpcError) {
-      if (
-        rpcError.code === "42883" ||
+    const rpcMissing =
+      rpcError &&
+      (rpcError.code === "42883" ||
         (rpcError.message.includes("function") &&
-          rpcError.message.includes("does not exist"))
-      ) {
-        setAuthError(ui.auth.databaseSchemaHint);
-      } else {
-        setAuthError(rpcError.message);
-      }
+          rpcError.message.includes("does not exist")));
+    if (rpcError && !rpcMissing) {
+      setAuthError(rpcError.message);
       return;
     }
     if (emailFree === false) {
@@ -275,6 +268,15 @@ export default function Home() {
     });
     if (error) {
       const msg = error.message.toLowerCase();
+      if (
+        msg.includes("password") &&
+        (msg.includes("at least") ||
+          msg.includes("short") ||
+          msg.includes("6 character"))
+      ) {
+        setAuthError(ui.auth.passwordTooShort);
+        return;
+      }
       if (
         msg.includes("already registered") ||
         msg.includes("user already") ||

@@ -17,7 +17,7 @@ export const ui = {
     welcomeSub:
       "Use the same username + password you chose at sign-up. New? Tap Create account.",
     welcomeSubRegister:
-      "Pick a username and password (6+ characters). No email required.",
+      "Pick a username and password. No email field — we only store a display name for you.",
     username: "Username",
     password: "Password",
     signIn: "Sign in",
@@ -30,8 +30,9 @@ export const ui = {
       "Forgot your password? Your admin can reset it in Supabase under Authentication → Users. Or create a new account below.",
     fillFields: "Please enter username and password.",
     invalidUsername:
-      "Usernames must be 2–32 characters: letters, numbers, dots, dashes, or underscores only. Do not use an email address — pick a name like aiza.",
-    passwordTooShort: "Password must be at least 6 characters.",
+      "Use a short name without spaces or @ (example: aiza). Not an email address.",
+    passwordTooShort:
+      "That password is too short for your Supabase project settings. Lower the minimum in Authentication → Providers → Email, or use a longer password.",
     databaseSchemaHint:
       "Database is not ready: run the SQL in supabase/migrations/ on your Supabase project (see README).",
     registerSuccessSession: "You're signed in. Welcome!",

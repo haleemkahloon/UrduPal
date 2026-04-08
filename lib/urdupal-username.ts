@@ -1,9 +1,12 @@
-/** Usernames for UrduPal sign-up (no email — stored identity is username only in the UI). */
-const URDUPAL_USERNAME_PATTERN = /^[a-zA-Z0-9._-]{2,32}$/;
+const MAX_USERNAME_LEN = 128;
 
+/**
+ * Register with any non-empty name (no `@`, no whitespace). Keeps synthetic emails valid.
+ */
 export function isValidUrduPalUsername(raw: string): boolean {
   const s = raw.trim();
-  if (!s) return false;
+  if (!s.length || s.length > MAX_USERNAME_LEN) return false;
   if (s.includes("@")) return false;
-  return URDUPAL_USERNAME_PATTERN.test(s);
+  if (/\s/.test(s)) return false;
+  return true;
 }
