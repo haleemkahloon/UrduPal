@@ -60,6 +60,8 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [progress, setProgress] = useState<UserProgress>(defaultProgress);
   const [authError, setAuthError] = useState("");
+  const [authSuccess, setAuthSuccess] = useState("");
+  const [authMode, setAuthMode] = useState<"signin" | "register">("signin");
   const [signInUsername, setSignInUsername] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -166,9 +168,16 @@ export default function Home() {
     window.setTimeout(() => setToast(""), 2500);
   }
 
+  function usernameForMetadata(raw: string): string {
+    const t = raw.trim();
+    if (t.includes("@")) return t.split("@")[0]?.toLowerCase() ?? "";
+    return t.toLowerCase();
+  }
+
   async function handleSignIn() {
     if (!supabase) return;
     setAuthError("");
+    setAuthSuccess("");
     if (!signInUsername.trim() || !signInPassword) {
       setAuthError(ui.auth.fillFields);
       return;
@@ -189,6 +198,60 @@ export default function Home() {
       password: signInPassword,
     });
     if (error) setAuthError(error.message);
+  }
+
+  async function handleRegister() {
+    if (!supabase) return;
+    setAuthError("");
+    setAuthSuccess("");
+    if (!signInUsername.trim() || !signInPassword) {
+      setAuthError(ui.auth.fillFields);
+      return;
+    }
+    if (signInPassword.length < 6) {
+      setAuthError(ui.auth.passwordTooShort);
+      return;
+    }
+    const { email, error: convertError } = usernameInputToAuthEmail(
+      signInUsername,
+    );
+    if (convertError) {
+      setAuthError(convertError);
+      return;
+    }
+    if (!email) {
+      setAuthError(ui.auth.fillFields);
+      return;
+    }
+    const metaUser = usernameForMetadata(signInUsername);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password: signInPassword,
+      options: {
+        data: { username: metaUser },
+      },
+    });
+    if (error) {
+      const msg = error.message.toLowerCase();
+      if (
+        msg.includes("already registered") ||
+        msg.includes("user already") ||
+        msg.includes("already been registered")
+      ) {
+        setAuthError(ui.auth.registerDuplicate);
+      } else {
+        setAuthError(error.message);
+      }
+      return;
+    }
+    if (data.session) {
+      setAuthSuccess(ui.auth.registerSuccessSession);
+      return;
+    }
+    if (data.user) {
+      setAuthSuccess(ui.auth.registerSuccessConfirmEmail);
+      setSignInPassword("");
+    }
   }
 
   async function handleSignOut() {
@@ -315,12 +378,63 @@ export default function Home() {
               {ui.auth.welcomeTitle}
             </h2>
             <p className={`mt-1 text-sm ${muted}`}>
-              {ui.auth.welcomeSub}
+              {authMode === "signin"
+                ? ui.auth.welcomeSub
+                : ui.auth.welcomeSubRegister}
             </p>
+            <div
+              className="mt-4 flex rounded-xl border border-neutral-200 bg-neutral-50 p-1 dark:border-neutral-600 dark:bg-neutral-800/80"
+              role="tablist"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={authMode === "signin"}
+                className={`flex-1 rounded-lg py-2 text-sm font-semibold transition ${
+                  authMode === "signin"
+                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-900 dark:text-neutral-100"
+                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                }`}
+                onClick={() => {
+                  setAuthMode("signin");
+                  setAuthError("");
+                  setAuthSuccess("");
+                }}
+              >
+                {ui.auth.signIn}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={authMode === "register"}
+                className={`flex-1 rounded-lg py-2 text-sm font-semibold transition ${
+                  authMode === "register"
+                    ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-900 dark:text-neutral-100"
+                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                }`}
+                onClick={() => {
+                  setAuthMode("register");
+                  setAuthError("");
+                  setAuthSuccess("");
+                }}
+              >
+                {ui.auth.createAccount}
+              </button>
+            </div>
+            {authMode === "signin" ? (
+              <p className={`mt-3 text-center text-xs leading-snug ${muted}`}>
+                {ui.auth.forgotPasswordHint}
+              </p>
+            ) : null}
             <div className="mt-5 flex flex-col gap-1">
             {authError ? (
               <div className="mb-4 rounded-xl bg-red-50 px-3 py-2.5 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-400">
                 {authError}
+              </div>
+            ) : null}
+            {authSuccess ? (
+              <div className="mb-4 rounded-xl bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                {authSuccess}
               </div>
             ) : null}
               <label className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
@@ -340,14 +454,63 @@ export default function Home() {
               <input
                 className="mb-4 w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-[15px] outline-none ring-[#58cc02]/30 focus:border-[#58cc02] focus:ring-2 dark:border-neutral-600 dark:bg-neutral-950"
                 type="password"
-                autoComplete="current-password"
+                autoComplete={
+                  authMode === "register" ? "new-password" : "current-password"
+                }
                 placeholder={ui.auth.placeholders.password}
                 value={signInPassword}
                 onChange={(e) => setSignInPassword(e.target.value)}
               />
-              <button type="button" className={primaryBtn} onClick={handleSignIn}>
-                {ui.auth.signIn}
-              </button>
+              {authMode === "signin" ? (
+                <button
+                  type="button"
+                  className={primaryBtn}
+                  onClick={handleSignIn}
+                >
+                  {ui.auth.signIn}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={primaryBtn}
+                  onClick={handleRegister}
+                >
+                  {ui.auth.createAccount}
+                </button>
+              )}
+              <div className="mt-4 border-t border-neutral-200 pt-4 text-center text-sm dark:border-neutral-700">
+                {authMode === "signin" ? (
+                  <p className={muted}>
+                    {ui.auth.newHere}{" "}
+                    <button
+                      type="button"
+                      className="font-semibold text-[#46a302] underline decoration-[#58cc02]/60 underline-offset-2 hover:text-[#58cc02]"
+                      onClick={() => {
+                        setAuthMode("register");
+                        setAuthError("");
+                        setAuthSuccess("");
+                      }}
+                    >
+                      {ui.auth.createAccountLink}
+                    </button>
+                  </p>
+                ) : (
+                  <p className={muted}>
+                    {ui.auth.alreadyHave}{" "}
+                    <button
+                      type="button"
+                      className="font-semibold text-[#46a302] underline decoration-[#58cc02]/60 underline-offset-2 hover:text-[#58cc02]"
+                      onClick={() => {
+                        setAuthMode("signin");
+                        setAuthError("");
+                        setAuthSuccess("");
+                      }}
+                    >
+                      {ui.auth.signInInstead}
+                    </button>
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>

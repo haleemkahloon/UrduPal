@@ -14,11 +14,26 @@ export const ui = {
   },
   auth: {
     welcomeTitle: "Welcome to UrduPal",
-    welcomeSub: "Sign in with your username and password.",
+    welcomeSub:
+      "Use the same username + password you chose at sign-up. New? Tap Create account.",
+    welcomeSubRegister:
+      "Pick a username and password (6+ characters). No email required.",
     username: "Username",
     password: "Password",
     signIn: "Sign in",
+    createAccount: "Create account",
+    newHere: "New here?",
+    createAccountLink: "Create an account",
+    alreadyHave: "Already have an account?",
+    signInInstead: "Sign in instead",
+    forgotPasswordHint:
+      "Forgot your password? Your admin can reset it in Supabase under Authentication → Users. Or create a new account below.",
     fillFields: "Please enter username and password.",
+    passwordTooShort: "Password must be at least 6 characters.",
+    registerSuccessSession: "You're signed in. Welcome!",
+    registerSuccessConfirmEmail:
+      "Account created. Check your email to confirm, then sign in. (If you use a placeholder email, turn off “Confirm email” in Supabase Auth → Providers → Email.)",
+    registerDuplicate: "That username is already registered. Try signing in.",
     placeholders: {
       username: "Your username or email",
       password: "••••••••",
