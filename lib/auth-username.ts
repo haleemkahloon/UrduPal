@@ -16,15 +16,10 @@ export function usernameInputToAuthEmail(input: string): {
     return { email: trimmed.toLowerCase(), error: null };
   }
 
-  const domain = process.env.NEXT_PUBLIC_AUTH_EMAIL_DOMAIN?.trim();
-  if (!domain) {
-    return {
-      email: null,
-      error:
-        "Add NEXT_PUBLIC_AUTH_EMAIL_DOMAIN to .env.local (domain used for your Supabase users, e.g. myapp.com), or sign in with your full email address.",
-    };
-  }
-
+  // Short name → email. Domain must match Auth "Email" in Supabase (part after @).
+  // Override with NEXT_PUBLIC_AUTH_EMAIL_DOMAIN (e.g. yahoo.com, outlook.com, yourdomain.com).
+  const domain =
+    process.env.NEXT_PUBLIC_AUTH_EMAIL_DOMAIN?.trim() || "gmail.com";
   const host = domain.replace(/^@/, "");
   return {
     email: `${trimmed.toLowerCase()}@${host}`,

@@ -19,7 +19,7 @@ Create `.env.local` in the project root (never commit this file):
 |----------|-------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Project URL (Settings → API) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon / publishable key |
-| `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` | Optional. If users sign in with a short **username** only, set the domain part of their Auth email (e.g. `myapp.com` for `user@myapp.com`). Omit if everyone uses full email. |
+| `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` | Optional. If users type a **short name** (no `@`), it becomes `name@DOMAIN`. Defaults to **`gmail.com`** in code if unset. Set this to match your Supabase Auth emails (e.g. `outlook.com`, `yahoo.com`, or your own domain). If accounts use **mixed** domains, sign in with the **full email** each time. |
 
 ```bash
 npm run dev
