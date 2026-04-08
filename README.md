@@ -7,6 +7,13 @@ Next.js app for learning Urdu: lessons, streaks, XP, and progress stored in **Su
 - Node.js 20+
 - A [Supabase](https://supabase.com) project (Auth + `urdupal_progress` table)
 
+### Supabase schema (usernames + progress)
+
+1. Open **SQL Editor** in the Supabase dashboard.
+2. Paste and run the migration file **`supabase/migrations/20260407120000_urdupal_app_users.sql`**. That creates **`urdupal_app_users`** (one row per login), an RPC to check if a username is free, and a trigger so new sign-ups are stored immediately.
+3. For **username-only** sign-up with instant login: **Authentication → Providers → Email** → turn **Confirm email** **off** (passwords still live in Auth only; the app never stores passwords in your tables).
+4. To **wipe all logins and progress**, run **`supabase/sql/reset_urdupal_users_and_auth.sql`** once (destructive).
+
 ## Local development
 
 ```bash

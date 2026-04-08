@@ -1,9 +1,8 @@
 /**
- * Supabase `signInWithPassword` expects the Auth user’s **email** field.
- * Your existing users in Supabase still have an email stored — often
- * `username@yourdomain.com`. Users can sign in with:
- * - Full email (`you@example.com`) — used as-is
- * - Username only (`haleem`) — combined with `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN`
+ * Supabase `signInWithPassword` / `signUp` use Auth’s **email** field internally.
+ * Sign-in accepts:
+ * - Full email — used as-is (legacy / admin)
+ * - Username only — combined with `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` (default gmail.com)
  */
 export function usernameInputToAuthEmail(input: string): {
   email: string | null;

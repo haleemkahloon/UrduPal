@@ -10,6 +10,7 @@ import {
   type SetStateAction,
 } from "react";
 import { usernameInputToAuthEmail } from "@/lib/auth-username";
+import { isValidUrduPalUsername } from "@/lib/urdupal-username";
 import { getFamilyRoleFromUser } from "@/lib/family-accounts";
 import { LESSONS } from "@/lib/lesson-data";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -64,6 +65,7 @@ export default function Home() {
   const [authMode, setAuthMode] = useState<"signin" | "register">("signin");
   const [signInUsername, setSignInUsername] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
+  const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [view, setView] = useState<"home" | "lesson">("home");
@@ -78,14 +80,23 @@ export default function Home() {
 
   const profileRef = useRef<HTMLDivElement>(null);
 
-  const loadProgress = useCallback(
+  const loadUserData = useCallback(
     async (u: User) => {
       if (!supabase) return;
-      const { data } = await supabase
-        .from("urdupal_progress")
-        .select("*")
-        .eq("user_id", u.id)
-        .single();
+      const [progressRes, profileRes] = await Promise.all([
+        supabase
+          .from("urdupal_progress")
+          .select("*")
+          .eq("user_id", u.id)
+          .maybeSingle(),
+        supabase
+          .from("urdupal_app_users")
+          .select("username")
+          .eq("user_id", u.id)
+          .maybeSingle(),
+      ]);
+
+      const data = progressRes.data;
       if (data) {
         setProgress({
           xp: data.xp ?? 0,
@@ -95,6 +106,12 @@ export default function Home() {
         });
       } else {
         setProgress(defaultProgress);
+      }
+
+      if (profileRes.data?.username) {
+        setProfileUsername(profileRes.data.username);
+      } else {
+        setProfileUsername(null);
       }
     },
     [supabase],
@@ -128,7 +145,7 @@ export default function Home() {
       if (cancelled) return;
       if (session?.user) {
         setUser(session.user);
-        await loadProgress(session.user);
+        await loadUserData(session.user);
       }
       setBooting(false);
     })();
@@ -137,10 +154,11 @@ export default function Home() {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user);
-        await loadProgress(session.user);
+        await loadUserData(session.user);
       }
       if (event === "SIGNED_OUT") {
         setUser(null);
+        setProfileUsername(null);
         setProgress(defaultProgress);
       }
     });
@@ -148,7 +166,7 @@ export default function Home() {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [supabase, loadProgress]);
+  }, [supabase, loadUserData]);
 
   useEffect(() => {
     function close(e: MouseEvent) {
@@ -212,6 +230,10 @@ export default function Home() {
       setAuthError(ui.auth.passwordTooShort);
       return;
     }
+    if (!isValidUrduPalUsername(signInUsername)) {
+      setAuthError(ui.auth.invalidUsername);
+      return;
+    }
     const { email, error: convertError } = usernameInputToAuthEmail(
       signInUsername,
     );
@@ -221,6 +243,26 @@ export default function Home() {
     }
     if (!email) {
       setAuthError(ui.auth.fillFields);
+      return;
+    }
+    const { data: emailFree, error: rpcError } = await supabase.rpc(
+      "urdupal_auth_email_available",
+      { p_email: email },
+    );
+    if (rpcError) {
+      if (
+        rpcError.code === "42883" ||
+        (rpcError.message.includes("function") &&
+          rpcError.message.includes("does not exist"))
+      ) {
+        setAuthError(ui.auth.databaseSchemaHint);
+      } else {
+        setAuthError(rpcError.message);
+      }
+      return;
+    }
+    if (emailFree === false) {
+      setAuthError(ui.auth.registerDuplicate);
       return;
     }
     const metaUser = usernameForMetadata(signInUsername);
@@ -298,6 +340,7 @@ export default function Home() {
   }, [finishLesson]);
 
   const displayName =
+    profileUsername ||
     (typeof user?.user_metadata?.username === "string"
       ? user.user_metadata.username
       : null) ||
@@ -306,9 +349,11 @@ export default function Home() {
     "there";
 
   const profileIdentifier =
+    profileUsername ||
     (typeof user?.user_metadata?.username === "string"
       ? user.user_metadata.username
-      : null) || user?.email;
+      : null) ||
+    user?.email;
 
   const familyRole = user ? getFamilyRoleFromUser(user) : null;
 
@@ -444,7 +489,11 @@ export default function Home() {
                 className="mb-3 w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-2.5 text-[15px] outline-none ring-[#58cc02]/30 focus:border-[#58cc02] focus:ring-2 dark:border-neutral-600 dark:bg-neutral-950"
                 type="text"
                 autoComplete="username"
-                placeholder={ui.auth.placeholders.username}
+                placeholder={
+                  authMode === "register"
+                    ? ui.auth.placeholders.usernameRegister
+                    : ui.auth.placeholders.usernameSignIn
+                }
                 value={signInUsername}
                 onChange={(e) => setSignInUsername(e.target.value)}
               />

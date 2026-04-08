@@ -29,13 +29,18 @@ export const ui = {
     forgotPasswordHint:
       "Forgot your password? Your admin can reset it in Supabase under Authentication → Users. Or create a new account below.",
     fillFields: "Please enter username and password.",
+    invalidUsername:
+      "Usernames must be 2–32 characters: letters, numbers, dots, dashes, or underscores only. Do not use an email address — pick a name like aiza.",
     passwordTooShort: "Password must be at least 6 characters.",
+    databaseSchemaHint:
+      "Database is not ready: run the SQL in supabase/migrations/ on your Supabase project (see README).",
     registerSuccessSession: "You're signed in. Welcome!",
     registerSuccessConfirmEmail:
       "Account created. Check your email to confirm, then sign in. (If you use a placeholder email, turn off “Confirm email” in Supabase Auth → Providers → Email.)",
     registerDuplicate: "That username is already registered. Try signing in.",
     placeholders: {
-      username: "Your username or email",
+      usernameSignIn: "Username or email",
+      usernameRegister: "e.g. aiza",
       password: "••••••••",
     },
   },
