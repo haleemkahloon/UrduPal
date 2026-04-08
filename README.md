@@ -41,7 +41,7 @@ Do these **in order** the first time you set up or after you pull new code.
 
 #### B. Allow instant sign-up / sign-in (no email inbox)
 
-The app signs users up with a **synthetic** email like `username@gmail.com`. If Supabase requires **email confirmation**, users never get a real email and cannot finish login.
+The app stores Auth as **email + password** internally, but you only type a **username**. It becomes a synthetic address like `username@urdupal.invalid` (RFC-reserved; not real mail). Avoid setting the domain to `gmail.com` — Supabase often rejects that as invalid for fake accounts. If Supabase requires **email confirmation**, turn it off for this flow.
 
 1. Supabase dashboard → **Authentication** (left sidebar).
 2. **Providers** → **Email**.
@@ -64,7 +64,7 @@ If sign-up still says the password is too short: on the same **Email** provider 
 4. Local: put them in **`.env.local`** at the project root (same folder as `package.json`). Never commit `.env.local`.
 5. Vercel: **Project → Settings → Environment Variables** → add the same names for **Production** (and Preview if you use it) → **Redeploy** after saving.
 
-Optional: `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` — only if you want synthetic emails to use a domain other than the default (`gmail.com` in code). Must stay consistent or existing users cannot sign in.
+Optional: `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` — only if you want synthetic emails to use a domain other than the default (`urdupal.invalid` in code). Must stay consistent or existing users cannot sign in. Do not use `gmail.com` unless you use real Gmail addresses.
 
 #### E. (Optional) Wipe every user and start clean
 
@@ -93,7 +93,7 @@ Create `.env.local` in the project root (never commit this file):
 |----------|-------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Project URL (Settings → API) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon / publishable key |
-| `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` | Optional. If users type a **short name** (no `@`), it becomes `name@DOMAIN`. Defaults to **`gmail.com`** in code if unset. Set this to match your Supabase Auth emails (e.g. `outlook.com`, `yahoo.com`, or your own domain). If accounts use **mixed** domains, sign in with the **full email** each time. |
+| `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` | Optional. Short name becomes `name@DOMAIN`. Default in code is **`urdupal.invalid`** (safe synthetic domain). Avoid **`gmail.com`** for username-only sign-up — Auth may reject it. |
 
 ```bash
 npm run dev
