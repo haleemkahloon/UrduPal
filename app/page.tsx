@@ -1,6 +1,5 @@
 "use client";
 
-import type { User } from "@supabase/supabase-js";
 import {
   useCallback,
   useEffect,
@@ -9,11 +8,8 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { usernameInputToAuthEmail } from "@/lib/auth-username";
-import { isValidUrduPalUsername } from "@/lib/urdupal-username";
-import { getFamilyRoleFromUser } from "@/lib/family-accounts";
+import { getFamilyRoleFromUsername } from "@/lib/family-accounts";
 import { LESSONS } from "@/lib/lesson-data";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ui } from "@/lib/translations";
 import type {
   LessonDefinition,
@@ -55,17 +51,17 @@ const defaultProgress: UserProgress = {
   completed: {},
 };
 
+type AppUser = { id: string; username: string };
+
 export default function Home() {
-  const supabase = getSupabaseBrowserClient();
-  const [booting, setBooting] = useState(!!supabase);
-  const [user, setUser] = useState<User | null>(null);
+  const [booting, setBooting] = useState(true);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [progress, setProgress] = useState<UserProgress>(defaultProgress);
   const [authError, setAuthError] = useState("");
   const [authSuccess, setAuthSuccess] = useState("");
   const [authMode, setAuthMode] = useState<"signin" | "register">("signin");
   const [signInUsername, setSignInUsername] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
-  const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [view, setView] = useState<"home" | "lesson">("home");
@@ -80,93 +76,59 @@ export default function Home() {
 
   const profileRef = useRef<HTMLDivElement>(null);
 
-  const loadUserData = useCallback(
-    async (u: User) => {
-      if (!supabase) return;
-      const [progressRes, profileRes] = await Promise.all([
-        supabase
-          .from("urdupal_progress")
-          .select("*")
-          .eq("user_id", u.id)
-          .maybeSingle(),
-        supabase
-          .from("urdupal_app_users")
-          .select("username")
-          .eq("user_id", u.id)
-          .maybeSingle(),
-      ]);
-
-      const data = progressRes.data;
-      if (data) {
-        setProgress({
-          xp: data.xp ?? 0,
-          streak: data.streak ?? 0,
-          lessons_done: data.lessons_done ?? 0,
-          completed: data.completed ?? {},
-        });
-      } else {
-        setProgress(defaultProgress);
-      }
-
-      if (profileRes.data?.username) {
-        setProfileUsername(profileRes.data.username);
-      } else {
-        setProfileUsername(null);
-      }
-    },
-    [supabase],
-  );
+  const loadProgressForUser = useCallback(async () => {
+    const res = await fetch("/api/progress", { credentials: "include" });
+    const json = (await res.json()) as {
+      progress?: UserProgress;
+      error?: string;
+    };
+    if (!res.ok) {
+      return;
+    }
+    if (json.progress) {
+      setProgress(json.progress);
+    } else {
+      setProgress(defaultProgress);
+    }
+  }, []);
 
   const saveProgress = useCallback(
     async (p: UserProgress) => {
-      if (!supabase || !user) return;
-      await supabase.from("urdupal_progress").upsert(
-        {
-          user_id: user.id,
-          xp: p.xp,
-          streak: p.streak,
-          lessons_done: p.lessons_done,
-          completed: p.completed,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" },
-      );
+      if (!user) return;
+      await fetch("/api/progress", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(p),
+      });
     },
-    [supabase, user],
+    [user],
   );
 
   useEffect(() => {
-    if (!supabase) return;
     let cancelled = false;
     (async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (cancelled) return;
-      if (session?.user) {
-        setUser(session.user);
-        await loadUserData(session.user);
+      try {
+        const res = await fetch("/api/auth/session", {
+          credentials: "include",
+        });
+        const json = (await res.json()) as {
+          user?: AppUser | null;
+          error?: string;
+        };
+        if (cancelled) return;
+        if (json.user) {
+          setUser(json.user);
+          await loadProgressForUser();
+        }
+      } finally {
+        if (!cancelled) setBooting(false);
       }
-      setBooting(false);
     })();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_IN" && session?.user) {
-        setUser(session.user);
-        await loadUserData(session.user);
-      }
-      if (event === "SIGNED_OUT") {
-        setUser(null);
-        setProfileUsername(null);
-        setProgress(defaultProgress);
-      }
-    });
     return () => {
       cancelled = true;
-      subscription.unsubscribe();
     };
-  }, [supabase, loadUserData]);
+  }, [loadProgressForUser]);
 
   useEffect(() => {
     function close(e: MouseEvent) {
@@ -186,122 +148,69 @@ export default function Home() {
     window.setTimeout(() => setToast(""), 2500);
   }
 
-  function usernameForMetadata(raw: string): string {
-    const t = raw.trim();
-    if (t.includes("@")) return t.split("@")[0]?.toLowerCase() ?? "";
-    return t.toLowerCase();
-  }
-
   async function handleSignIn() {
-    if (!supabase) return;
     setAuthError("");
     setAuthSuccess("");
     if (!signInUsername.trim() || !signInPassword) {
       setAuthError(ui.auth.fillFields);
       return;
     }
-    const { email, error: convertError } = usernameInputToAuthEmail(
-      signInUsername,
-    );
-    if (convertError) {
-      setAuthError(convertError);
-      return;
-    }
-    if (!email) {
-      setAuthError(ui.auth.fillFields);
-      return;
-    }
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: signInPassword,
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: signInUsername,
+        password: signInPassword,
+      }),
     });
-    if (error) setAuthError(error.message);
+    const json = (await res.json()) as { user?: AppUser; error?: string };
+    if (!res.ok) {
+      setAuthError(json.error ?? ui.auth.signInFailed);
+      return;
+    }
+    if (json.user) {
+      setUser(json.user);
+      await loadProgressForUser();
+    }
   }
 
   async function handleRegister() {
-    if (!supabase) return;
     setAuthError("");
     setAuthSuccess("");
     if (!signInUsername.trim() || !signInPassword) {
       setAuthError(ui.auth.fillFields);
       return;
     }
-    if (!isValidUrduPalUsername(signInUsername)) {
-      setAuthError(ui.auth.invalidUsername);
-      return;
-    }
-    const { email, error: convertError } = usernameInputToAuthEmail(
-      signInUsername,
-    );
-    if (convertError) {
-      setAuthError(convertError);
-      return;
-    }
-    if (!email) {
-      setAuthError(ui.auth.fillFields);
-      return;
-    }
-    const { data: emailFree, error: rpcError } = await supabase.rpc(
-      "urdupal_auth_email_available",
-      { p_email: email },
-    );
-    const rpcMissing =
-      rpcError &&
-      (rpcError.code === "42883" ||
-        (rpcError.message.includes("function") &&
-          rpcError.message.includes("does not exist")));
-    if (rpcError && !rpcMissing) {
-      setAuthError(rpcError.message);
-      return;
-    }
-    if (emailFree === false) {
-      setAuthError(ui.auth.registerDuplicate);
-      return;
-    }
-    const metaUser = usernameForMetadata(signInUsername);
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password: signInPassword,
-      options: {
-        data: { username: metaUser },
-      },
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: signInUsername,
+        password: signInPassword,
+      }),
     });
-    if (error) {
-      const msg = error.message.toLowerCase();
-      if (
-        msg.includes("password") &&
-        (msg.includes("at least") ||
-          msg.includes("short") ||
-          msg.includes("6 character"))
-      ) {
-        setAuthError(ui.auth.passwordTooShort);
-        return;
-      }
-      if (
-        msg.includes("already registered") ||
-        msg.includes("user already") ||
-        msg.includes("already been registered")
-      ) {
-        setAuthError(ui.auth.registerDuplicate);
-      } else {
-        setAuthError(error.message);
-      }
+    const json = (await res.json()) as { user?: AppUser; error?: string };
+    if (!res.ok) {
+      setAuthError(json.error ?? ui.auth.registerFailed);
       return;
     }
-    if (data.session) {
+    if (json.user) {
+      setUser(json.user);
       setAuthSuccess(ui.auth.registerSuccessSession);
-      return;
-    }
-    if (data.user) {
-      setAuthSuccess(ui.auth.registerSuccessConfirmEmail);
-      setSignInPassword("");
+      await loadProgressForUser();
     }
   }
 
   async function handleSignOut() {
     setProfileOpen(false);
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+    setUser(null);
+    setProgress(defaultProgress);
   }
 
   const finishLesson = useCallback(
@@ -341,23 +250,11 @@ export default function Home() {
     });
   }, [finishLesson]);
 
-  const displayName =
-    profileUsername ||
-    (typeof user?.user_metadata?.username === "string"
-      ? user.user_metadata.username
-      : null) ||
-    user?.user_metadata?.full_name ||
-    user?.email?.split("@")[0] ||
-    "there";
+  const displayName = user?.username ?? "there";
 
-  const profileIdentifier =
-    profileUsername ||
-    (typeof user?.user_metadata?.username === "string"
-      ? user.user_metadata.username
-      : null) ||
-    user?.email;
+  const profileIdentifier = user?.username ?? "";
 
-  const familyRole = user ? getFamilyRoleFromUser(user) : null;
+  const familyRole = user ? getFamilyRoleFromUsername(user.username) : null;
 
   function startLesson(unit: number, lesson: number) {
     const key = `${unit}-${lesson}`;
@@ -387,17 +284,6 @@ export default function Home() {
     setView("home");
     setLessonState(null);
     setLessonComplete(null);
-  }
-
-  if (!supabase) {
-    return (
-      <div className={`flex flex-col items-center justify-center px-4 py-12 ${pageBg}`}>
-        <div className={`${card} max-w-md text-center`}>
-          <h1 className="text-lg font-bold text-[#58cc02]">{ui.config.title}</h1>
-          <p className={`mt-2 text-sm ${muted}`}>{ui.config.hint}</p>
-        </div>
-      </div>
-    );
   }
 
   if (booting) {
@@ -693,7 +579,7 @@ function HomeBody({
   onToast,
 }: {
   displayName: string;
-  familyRole: ReturnType<typeof getFamilyRoleFromUser>;
+  familyRole: ReturnType<typeof getFamilyRoleFromUsername>;
   progress: UserProgress;
   onStartLesson: (u: number, l: number) => void;
   onToast: (s: string) => void;

@@ -10,14 +10,14 @@ export const ui = {
   config: {
     title: "UrduPal",
     hint:
-      "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local.",
+      "Server: set SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_URL, and AUTH_SECRET (32+ chars) in .env.local.",
   },
   auth: {
     welcomeTitle: "Welcome to UrduPal",
     welcomeSub:
       "Use the same username + password you chose at sign-up. New? Tap Create account.",
     welcomeSubRegister:
-      "Pick a username and password. No email field — we only store a display name for you.",
+      "Pick a username and password. Nothing is sent to an email provider.",
     username: "Username",
     password: "Password",
     signIn: "Sign in",
@@ -27,7 +27,7 @@ export const ui = {
     alreadyHave: "Already have an account?",
     signInInstead: "Sign in instead",
     forgotPasswordHint:
-      "Forgot your password? Your admin can reset it in Supabase under Authentication → Users. Or create a new account below.",
+      "Forgot your password? Create a new account with a different username, or ask your admin to reset your row in Supabase.",
     fillFields: "Please enter username and password.",
     invalidUsername:
       "Use a short name without spaces or @ (example: aiza). Not an email address.",
@@ -39,6 +39,8 @@ export const ui = {
     registerSuccessConfirmEmail:
       "Account created. Check your email to confirm, then sign in. (If you use a placeholder email, turn off “Confirm email” in Supabase Auth → Providers → Email.)",
     registerDuplicate: "That username is already registered. Try signing in.",
+    signInFailed: "Could not sign in.",
+    registerFailed: "Could not create account.",
     placeholders: {
       usernameSignIn: "Username or email",
       usernameRegister: "e.g. aiza",

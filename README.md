@@ -1,140 +1,75 @@
 # UrduPal
 
-Next.js app for learning Urdu: lessons, streaks, XP, and progress stored in **Supabase**.
+Next.js app for learning Urdu: lessons, streaks, XP, and progress in **Supabase Postgres**.
+
+**Login is username + password only** (no email). Accounts live in **`urdupal_local_accounts`**; passwords are bcrypt hashes. Sessions use a signed HTTP-only cookie (`AUTH_SECRET`). The **Supabase service role** is used only in **server** API routes — never expose it to the browser.
 
 ## Requirements
 
 - Node.js 20+
-- A [Supabase](https://supabase.com) project (Auth + `urdupal_progress` table)
+- A [Supabase](https://supabase.com) project
+- Environment variables below
 
-### Where the SQL files live (in this repo)
+### SQL migrations (run in Supabase → SQL Editor)
 
-Everything is under the project root folder `urdupal-app/` (or whatever you named the clone).
+| File | Purpose |
+|------|---------|
+| **`supabase/migrations/20260408100000_urdupal_local_accounts.sql`** | **Use this.** Creates `urdupal_local_accounts` and links `urdupal_progress.user_id` to it (truncates old progress when switching from Auth). |
+| `supabase/migrations/20260407120000_urdupal_app_users.sql` | **Legacy** (Supabase Auth + trigger). Skip if you only use username/password from the migration above. |
 
-| What | Path from project root | What it does |
-|------|------------------------|--------------|
-| **Main migration (run first)** | `supabase/migrations/20260407120000_urdupal_app_users.sql` | Creates `urdupal_app_users`, RLS policies, `urdupal_auth_email_available()`, and the `auth.users` trigger. |
-| **Nuclear reset (optional)** | `supabase/sql/reset_urdupal_users_and_auth.sql` | Deletes **all** Auth users + clears `urdupal_app_users` + truncates `urdupal_progress`. **Irreversible.** |
-
-On your Mac, if the project is at `/Users/haleemmasood/urdupal-app`, the migration file is:
-
-`/Users/haleemmasood/urdupal-app/supabase/migrations/20260407120000_urdupal_app_users.sql`
-
-Open it in your editor, **Select All**, copy, then paste into Supabase (steps below).
+**Reset script:** `supabase/sql/reset_urdupal_users_and_auth.sql` — truncates progress and deletes local accounts.
 
 ---
 
-### Step-by-step checklist (Supabase + app)
+## Environment variables
 
-Do these **in order** the first time you set up or after you pull new code.
+Create **`.env.local`** in the project root (never commit it).
 
-#### A. Run the migration (creates tables + trigger + RPC)
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Project URL (Settings → API). |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | **Secret.** Server-only; used in `/api/*` to read/write Postgres. |
+| `AUTH_SECRET` | Yes | At least **32 characters**; used to sign session cookies. Generate e.g. `openssl rand -base64 32`. |
 
-1. On your machine, open the file **`supabase/migrations/20260407120000_urdupal_app_users.sql`** in Cursor/VS Code (or any editor).
-2. Select the **entire** contents (`Cmd+A`), copy (`Cmd+C`).
-3. In the browser, open [Supabase](https://supabase.com) → your project.
-4. Left sidebar → **SQL Editor**.
-5. Click **New query** (or use a blank query tab).
-6. Paste the SQL (`Cmd+V`).
-7. Click **Run** (or press the keyboard shortcut shown in the UI).
-8. Confirm you see **Success** with no red errors. If something already exists from a partial run, read the error text; you may need to fix duplicates in the dashboard or ask for help with the exact message.
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` is **not** required for the current app (no browser Supabase client).
 
-#### B. Allow instant sign-up / sign-in (no email inbox)
+### Vercel
 
-The UI only asks for a **username** and password. Supabase Auth still stores a login id that **looks like an email** (we send `username@example.com` by default — a valid-format placeholder, not a real inbox). If Supabase requires **email confirmation**, sign-up cannot finish because no real email exists — keep **Confirm email** off for this flow.
-
-1. Supabase dashboard → **Authentication** (left sidebar).
-2. **Providers** → **Email**.
-3. Turn **Confirm email** **OFF** (disable).
-4. Save if the UI asks you to.
-
-If sign-up still says the password is too short: on the same **Email** provider screen, lower **Minimum password length** (Supabase enforces this server-side; the app does not block password length). Example **`abc123`** has 6 characters and matches the usual default of **6**.
-
-#### C. Point Auth at your deployed app (production)
-
-1. **Authentication** → **URL configuration**.
-2. **Site URL**: your live app URL, e.g. `https://urdupal-app.vercel.app`.
-3. **Redirect URLs**: add the same base URL and/or `https://your-domain.vercel.app/**` so auth redirects work.
-
-#### D. Environment variables (local + Vercel)
-
-1. In Supabase: **Project Settings** (gear) → **API**.
-2. Copy **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`.
-3. Copy **anon public** key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-4. Local: put them in **`.env.local`** at the project root (same folder as `package.json`). Never commit `.env.local`.
-5. Vercel: **Project → Settings → Environment Variables** → add the same names for **Production** (and Preview if you use it) → **Redeploy** after saving.
-
-Optional: `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` — only if you want a domain other than the default **`example.com`**. Do **not** use `gmail.com` unless you know your project accepts it; it often triggers **invalid / not authorized** errors for synthetic accounts. After changing this, existing users must sign in with the same synthetic address (username + same domain).
-
-#### E. (Optional) Wipe every user and start clean
-
-Only if you really want **zero** accounts and **no** lesson progress.
-
-1. Open **`supabase/sql/reset_urdupal_users_and_auth.sql`** locally, copy **all** SQL.
-2. Supabase → **SQL Editor** → new query → paste → **Run**.
-3. If `truncate` fails because `urdupal_progress` does not exist yet, create that table first or remove the `truncate` line and run again (or create the progress table from your earlier schema).
+Add the same three variables for **Production**. Redeploy after changing env vars.
 
 ---
-
-### Supabase schema (short summary)
-
-- **`urdupal_app_users`** — one row per login; `username` for display; `user_id` links to `auth.users`.
-- **`urdupal_progress`** — lesson XP / streak (separate table; must exist for the app to save progress).
-
-### See registered users (Supabase)
-
-The app does not show a user list in the UI. Use the dashboard or SQL:
-
-1. **Dashboard:** **Authentication** → **Users** — table of every account (shows the synthetic **Email** column).
-2. **SQL Editor**, run:
-
-```sql
--- Auth identities (what Supabase uses to log in)
-select id, email, created_at,
-       raw_user_meta_data->>'username' as username_meta
-from auth.users
-order by created_at desc;
-
--- App profile table (after migration is applied)
-select * from public.urdupal_app_users
-order by created_at desc;
-```
-
-I cannot access your Supabase project from here; only you (or someone with dashboard access) can see the live user list.
 
 ## Local development
 
 ```bash
 npm install
-```
-
-Create `.env.local` in the project root (never commit this file):
-
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Project URL (Settings → API) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon / publishable key |
-| `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` | Optional. Short usernames become `name@DOMAIN`. Defaults to **`example.com`** if unset (recommended for synthetic logins). Avoid `gmail.com` for fake addresses unless your Supabase project allows it. |
-
-```bash
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
+---
+
+## List registered users (SQL)
+
+There is no Supabase Auth user row for local accounts. Query:
+
+```sql
+select id, username, created_at
+from public.urdupal_local_accounts
+order by created_at desc;
+```
+
+---
+
 ## Deploy on Vercel
 
 1. Push this repo to GitHub.
-2. Import the repo in [Vercel](https://vercel.com) (New Project → select repository).
-3. Add the same environment variables as in `.env.local` under **Project → Settings → Environment Variables** (Production / Preview as needed).
-4. Deploy. Vercel will assign a URL like `https://<project>.vercel.app`.
+2. Import the project in [Vercel](https://vercel.com).
+3. Set **Environment Variables** (see table above).
+4. Deploy.
 
-### Supabase after deploy
-
-In Supabase: **Authentication → URL configuration**
-
-- Set **Site URL** to your Vercel URL.
-- Add your Vercel URL to **Redirect URLs** (e.g. `https://your-app.vercel.app/**`).
+---
 
 ## Scripts
 
