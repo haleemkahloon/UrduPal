@@ -41,7 +41,7 @@ Do these **in order** the first time you set up or after you pull new code.
 
 #### B. Allow instant sign-up / sign-in (no email inbox)
 
-The app stores Auth as **email + password** internally, but you only type a **username**. It becomes a synthetic address like `username@urdupal.invalid` (RFC-reserved; not real mail). Avoid setting the domain to `gmail.com` — Supabase often rejects that as invalid for fake accounts. If Supabase requires **email confirmation**, turn it off for this flow.
+The UI only asks for a **username** and password. Supabase Auth still stores a login id that **looks like an email** (we send `username@example.com` by default — a valid-format placeholder, not a real inbox). If Supabase requires **email confirmation**, sign-up cannot finish because no real email exists — keep **Confirm email** off for this flow.
 
 1. Supabase dashboard → **Authentication** (left sidebar).
 2. **Providers** → **Email**.
@@ -64,7 +64,7 @@ If sign-up still says the password is too short: on the same **Email** provider 
 4. Local: put them in **`.env.local`** at the project root (same folder as `package.json`). Never commit `.env.local`.
 5. Vercel: **Project → Settings → Environment Variables** → add the same names for **Production** (and Preview if you use it) → **Redeploy** after saving.
 
-Optional: `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` — only if you want synthetic emails to use a domain other than the default (`urdupal.invalid` in code). Must stay consistent or existing users cannot sign in. Do not use `gmail.com` unless you use real Gmail addresses.
+Optional: `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` — only if you want a domain other than the default **`example.com`**. Do **not** use `gmail.com` unless you know your project accepts it; it often triggers **invalid / not authorized** errors for synthetic accounts. After changing this, existing users must sign in with the same synthetic address (username + same domain).
 
 #### E. (Optional) Wipe every user and start clean
 
@@ -81,6 +81,27 @@ Only if you really want **zero** accounts and **no** lesson progress.
 - **`urdupal_app_users`** — one row per login; `username` for display; `user_id` links to `auth.users`.
 - **`urdupal_progress`** — lesson XP / streak (separate table; must exist for the app to save progress).
 
+### See registered users (Supabase)
+
+The app does not show a user list in the UI. Use the dashboard or SQL:
+
+1. **Dashboard:** **Authentication** → **Users** — table of every account (shows the synthetic **Email** column).
+2. **SQL Editor**, run:
+
+```sql
+-- Auth identities (what Supabase uses to log in)
+select id, email, created_at,
+       raw_user_meta_data->>'username' as username_meta
+from auth.users
+order by created_at desc;
+
+-- App profile table (after migration is applied)
+select * from public.urdupal_app_users
+order by created_at desc;
+```
+
+I cannot access your Supabase project from here; only you (or someone with dashboard access) can see the live user list.
+
 ## Local development
 
 ```bash
@@ -93,7 +114,7 @@ Create `.env.local` in the project root (never commit this file):
 |----------|-------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Project URL (Settings → API) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon / publishable key |
-| `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` | Optional. Short name becomes `name@DOMAIN`. Default in code is **`urdupal.invalid`** (safe synthetic domain). Avoid **`gmail.com`** for username-only sign-up — Auth may reject it. |
+| `NEXT_PUBLIC_AUTH_EMAIL_DOMAIN` | Optional. Short usernames become `name@DOMAIN`. Defaults to **`example.com`** if unset (recommended for synthetic logins). Avoid `gmail.com` for fake addresses unless your Supabase project allows it. |
 
 ```bash
 npm run dev
